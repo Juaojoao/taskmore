@@ -13,6 +13,8 @@ export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
+  console.log(session?.user);
+
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/login");
@@ -80,7 +82,7 @@ export default function DashboardPage() {
 
             <button
               type="submit"
-              className="bg-indigo-500 text-white px-4 py-2 rounded text-center flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed w-full mt-4"
+              className="bg-blue-500 text-white px-4 py-2 rounded text-center flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed w-full mt-4"
               disabled={submitLoading}
             >
               {submitLoading && (
