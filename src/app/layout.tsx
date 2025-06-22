@@ -4,8 +4,8 @@ import { SessionWrapper } from "@/components/SessionWrapper";
 import { Header } from "@/components/layout/Header";
 
 export const metadata: Metadata = {
-  title: "Estudo Node",
-  description: "Estudo Node",
+  title: "Estudo Next",
+  description: "Estudo Next",
 };
 
 export default function RootLayout({
