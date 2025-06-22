@@ -1,19 +1,26 @@
 "use client";
 
+import { Tasks } from "@/types/task.type";
+
 import { Textarea } from "@/components/ui/Textarea";
 import { useSession } from "next-auth/react";
-import Head from "next/head";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { FaShare, FaTrash } from "react-icons/fa";
 
 export default function DashboardPage() {
+  const [tasksData, setTasksData] = useState<Tasks[] | []>([]);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [loadingTask, setLoadingTask] = useState(false);
+
+  const [submitStatus, setSubmitStatus] = useState<
+    "idle" | "loading" | "success"
+  >("idle");
+  const [inputDescription, setInputDescription] = useState("");
+  const [inputCheck, SetInputCheck] = useState(false);
 
   const { data: session, status } = useSession();
   const router = useRouter();
-
-  console.log(session?.user);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -21,7 +28,73 @@ export default function DashboardPage() {
     }
   }, [status, router]);
 
-  // Mostra loading enquanto verifica a sessão
+  useEffect(() => {
+    const fetchTask = async () => {
+      if (!session?.user?.email) return;
+
+      try {
+        setLoadingTask(true);
+
+        const res = await fetch(`/api/tasks/${session.user.email}`);
+        const data: Tasks[] = await res.json();
+        setTasksData(data);
+
+        setLoadingTask(false);
+      } catch (error) {
+        setLoadingTask(false);
+        console.error(error);
+      } finally {
+        setLoadingTask(false);
+      }
+    };
+
+    fetchTask();
+  }, [session?.user?.email]);
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (submitStatus === "loading") return;
+    if (inputDescription.trim() === "") return;
+
+    setSubmitStatus("loading");
+
+    try {
+      const data = {
+        userId: session?.user.id,
+        description: inputDescription,
+        public: inputCheck,
+      };
+
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      const newTask: Tasks = await res.json();
+      setTasksData((prev) => [...prev, newTask]);
+      setInputDescription(""); // limpa
+      setSubmitStatus("success"); // mostra "Cadastrado!"
+    } catch (error) {
+      console.error(error);
+      setSubmitStatus("idle"); // erro → volta ao normal
+    } finally {
+      // Volta para "Registrar" depois de 5 segundos
+      setTimeout(() => {
+        setSubmitStatus("idle");
+      }, 5000);
+    }
+  };
+
+  const handleCheckBox = (e: ChangeEvent<HTMLInputElement>) => {
+    SetInputCheck(e.target.checked);
+  };
+
+  const handleInputDesc = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    setInputDescription(e.target.value);
+  };
+
   if (status === "loading") {
     return (
       <div className="flex items-center justify-center min-h-screen animate-pulse">
@@ -30,7 +103,6 @@ export default function DashboardPage() {
     );
   }
 
-  // Se não estiver autenticado, mostra loading (vai redirecionar)
   if (!session?.user) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -39,37 +111,23 @@ export default function DashboardPage() {
     );
   }
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setSubmitLoading(true);
-
-    try {
-      // await fetch ou alguma promessa aqui
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      console.log("Enviado!");
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setSubmitLoading(false);
-    }
-  };
-
   return (
     <div className="h-full">
-      <Head>
-        <title>Dashboard</title>
-      </Head>
-
       <section>
         <div className="bg-background  max-w-5xl m-auto mt-8">
           <h1 className="font-bold text-4xl pb-2">QUAL SUA TAREFA?</h1>
           <form onSubmit={handleSubmit}>
-            <Textarea className="border-white" />
+            <Textarea
+              className="border-white"
+              onChange={handleInputDesc}
+              value={inputDescription}
+            />
             <div className="flex items-center mt-4">
               <input
                 id="link-checkbox"
                 type="checkbox"
-                value=""
+                checked={inputCheck}
+                onChange={handleCheckBox}
                 className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded-md focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
               />
               <label
@@ -82,7 +140,13 @@ export default function DashboardPage() {
 
             <button
               type="submit"
-              className="bg-blue-500 text-white px-4 py-2 rounded text-center flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed w-full mt-4"
+              className={`cursor-pointer ease-in-out transition-colors text-white px-4 py-2 rounded text-center flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed w-full mt-4 ${
+                submitStatus === "loading"
+                  ? "bg-yellow-500 hover:bg-yellow-500/50"
+                  : submitStatus === "success"
+                  ? "bg-green-500 hover:bg-green-500/50"
+                  : "bg-blue-500 hover:bg-blue-500/50"
+              }`}
               disabled={submitLoading}
             >
               {submitLoading && (
@@ -107,7 +171,11 @@ export default function DashboardPage() {
                   ></path>
                 </svg>
               )}
-              {submitLoading ? "Carregando..." : "Registrar"}
+              {submitStatus === "loading"
+                ? "Carregando..."
+                : submitStatus === "success"
+                ? "Cadastrado!"
+                : "Registrar"}
             </button>
           </form>
         </div>
@@ -119,57 +187,68 @@ export default function DashboardPage() {
             MINHAS TAREFAS
           </h1>
 
-          <article className="border border-gray-300 py-2 px-4 rounded-md mb-4">
-            <div className="flex justify-between">
-              <div className="flex gap-4 items-center">
-                <button
-                  type="button"
-                  className="bg-blue-500 text-white px-3 py-1 text-[10px] rounded-md"
+          {loadingTask ? (
+            <div className="flex items-center justify-center mt-32">
+              <svg
+                className="w-24 h-24 animate-spin text-gray-700/30"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                ></path>
+              </svg>
+            </div>
+          ) : tasksData.length > 0 ? (
+            tasksData.map((task) => (
+              <article
+                key={task.id}
+                className="border border-gray-300 py-2 px-4 rounded-md mb-4 shadow-md hover:shadow-xl transition-all ease-in"
+              >
+                <div
+                  className={`flex ${
+                    task.public ? "justify-between" : "justify-end"
+                  }`}
                 >
-                  PUBLICO
-                </button>
-                <button type="button">
-                  <FaShare className="text-base text-blue-500" />
-                </button>
-              </div>
+                  {task.public && (
+                    <div className="flex gap-4 items-center">
+                      <span className="bg-blue-500 text-white px-3 py-1 text-[10px] rounded-md">
+                        PUBLICO
+                      </span>
+                      <button type="button">
+                        <FaShare className="text-base text-blue-500" />
+                      </button>
+                    </div>
+                  )}
 
-              <button type="button">
-                <FaTrash className="text-red-500 text-base" />
-              </button>
+                  <button type="button">
+                    <FaTrash className="text-red-500 text-base" />
+                  </button>
+                </div>
+
+                <div className="flex justify-between items-center mt-6">
+                  <p className="text-background font-extralight">
+                    {task.description ?? "Sem descrição"}
+                  </p>
+                </div>
+              </article>
+            ))
+          ) : (
+            <div>
+              <p>Nenhuma task encontrada</p>
             </div>
-
-            <div className="flex justify-between items-center mt-6">
-              <p className="text-background font-extralight">
-                Estudar javascript com sujeito programador
-              </p>
-            </div>
-          </article>
-
-          <article className="border border-gray-300 py-2 px-4 rounded-md">
-            <div className="flex justify-between">
-              <div className="flex gap-4 items-center">
-                <button
-                  type="button"
-                  className="bg-blue-500 text-white px-3 py-1 text-[10px] rounded-md"
-                >
-                  PUBLICO
-                </button>
-                <button type="button">
-                  <FaShare className="text-base text-blue-500" />
-                </button>
-              </div>
-
-              <button type="button">
-                <FaTrash className="text-red-500 text-base" />
-              </button>
-            </div>
-
-            <div className="flex justify-between items-center mt-6">
-              <p className="text-background font-extralight">
-                Estudar javascript com sujeito programador
-              </p>
-            </div>
-          </article>
+          )}
         </div>
       </section>
     </div>
