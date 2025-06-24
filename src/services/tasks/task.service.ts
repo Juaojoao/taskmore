@@ -2,7 +2,8 @@ import { db } from "@/db/db";
 import { tasksTable } from "@/db/schema/tasks";
 import { usersTable } from "@/db/schema/user";
 import { Tasks } from "@/types/task.type";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
+import { on } from "events";
 
 export class TaskService {
   async create(data: Tasks) {
@@ -16,8 +17,15 @@ export class TaskService {
 
   async getById(id: string) {
     const [task] = await db
-      .select()
+      .select({
+        id: tasksTable.id,
+        description: tasksTable.description,
+        createdAt: tasksTable.createdAt,
+        public: tasksTable.public,
+        username: usersTable.name,
+      })
       .from(tasksTable)
+      .innerJoin(usersTable, (on) => eq(tasksTable.userId, usersTable.id))
       .where(eq(tasksTable.id, id));
     return task;
   }
@@ -32,7 +40,8 @@ export class TaskService {
       })
       .from(tasksTable)
       .innerJoin(usersTable, (on) => eq(tasksTable.userId, usersTable.id))
-      .where(eq(usersTable.email, email));
+      .where(eq(usersTable.email, email))
+      .orderBy(desc(tasksTable.createdAt));
 
     return tasks;
   }
@@ -49,7 +58,11 @@ export class TaskService {
     return task;
   }
 
-  async delete(id: string) {
-    await db.delete(tasksTable).where(eq(tasksTable.id, id));
+  async Delete(id: string) {
+    if (!id) return false;
+
+    const deleted = await db.delete(tasksTable).where(eq(tasksTable.id, id));
+
+    return (deleted.rowCount ?? 0) > 0;
   }
 }

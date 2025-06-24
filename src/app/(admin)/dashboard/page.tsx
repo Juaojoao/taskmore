@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
-import { FaShare, FaTrash } from "react-icons/fa";
+import { FaComment, FaShare, FaTrash } from "react-icons/fa";
 
 export default function DashboardPage() {
   const [tasksData, setTasksData] = useState<Tasks[] | []>([]);
@@ -35,8 +35,16 @@ export default function DashboardPage() {
       try {
         setLoadingTask(true);
 
-        const res = await fetch(`/api/tasks/${session.user.email}`);
+        const res = await fetch(
+          `/api/tasks/email?email=${encodeURIComponent(session.user.email)}`,
+          {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+
         const data: Tasks[] = await res.json();
+
         setTasksData(data);
 
         setLoadingTask(false);
@@ -110,6 +118,40 @@ export default function DashboardPage() {
       </div>
     );
   }
+
+  const getDate = (value: string) => {
+    const date = new Date(value);
+    return date.toLocaleDateString("pt-bt", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  };
+
+  const handleDeleteTask = async (id: string) => {
+    const confirmed = confirm("Tem certeza que deseja excluir esta tarefa?");
+    const res = await fetch("/api/tasks", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+
+    const data = await res.json();
+
+    if (confirmed) {
+      if (res.ok) {
+        alert(data.message);
+
+        setTasksData((prev) => prev.filter((task) => task.id !== id));
+      }
+    } else {
+      alert("Erro ao Exluir esta task!");
+    }
+  };
 
   return (
     <div className="h-full">
@@ -232,11 +274,30 @@ export default function DashboardPage() {
                     </div>
                   )}
 
-                  <button type="button">
-                    <FaTrash className="text-red-500 text-base" />
-                  </button>
+                  <div className="flex gap-4">
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/task/${task.id}`)}
+                    >
+                      <FaComment className="cursor-pointer text-blue-500 text-base" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteTask(task.id)}
+                    >
+                      <FaTrash className="text-red-500 text-base cursor-pointer" />
+                    </button>
+                  </div>
                 </div>
 
+                {task.createdAt && (
+                  <div className="mt-2">
+                    <p className="text-background/50 text-sm">
+                      {getDate(task.createdAt.toString())}
+                    </p>
+                  </div>
+                )}
                 <div className="flex justify-between items-center mt-6">
                   <p className="text-background font-extralight">
                     {task.description ?? "Sem descrição"}
@@ -245,8 +306,8 @@ export default function DashboardPage() {
               </article>
             ))
           ) : (
-            <div>
-              <p>Nenhuma task encontrada</p>
+            <div className="flex items-center justify-center border border-background/10 p-4 rounded-md">
+              <p className="text-background">Nenhuma task encontrada</p>
             </div>
           )}
         </div>

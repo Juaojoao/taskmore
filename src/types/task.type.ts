@@ -3,4 +3,6 @@ export interface Tasks {
   description: string;
   userId: string;
   public: boolean;
+  createdAt?: Date;
+  username?: string;
 }
